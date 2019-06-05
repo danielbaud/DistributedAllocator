@@ -1,12 +1,12 @@
 MPICC=mpicc
 MPIRUN=mpirun
-MPIFLAGS=-hostfile hostfile
+MPIFLAGS=-hostfile src/hostfile
 
 main: 
 	$(MPICC) src/main.cc -o main
 
 run:
-	$(MPIRUN) $(MPIFLAGS) src/main
+	$(MPIRUN) $(MPIFLAGS) main
 
 clean:
 	rm -f main
