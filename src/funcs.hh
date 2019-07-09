@@ -14,3 +14,4 @@ bool read(int master, int rank, int size);
 bool list(int master, int rank, int size);
 bool kill(int master, int rank, int size);
 void send_all(int master, const char *message, int size);
+void receive_all_end(int master, int size);
