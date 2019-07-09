@@ -5,15 +5,17 @@ using namespace std;
 bool help()
 {
     cout << "Available commands:" << endl;
-    cout << "\talloc -f <file> | <string>\tAllocate either a file in memory or the string <string>&" << endl;
-    cout << "\tread <chunk>\t\t\tReads the chunk <chunk>" << endl;
+    cout << "\talloc -f <file> | <string>\tAllocate either a file in memory or the string <string>" << endl;
+    cout << "\tfree <chain>\t\t\tFrees the chain <chain>" << endl;
+    cout << "\tread <chain>\t\t\tReads the chain <chain>" << endl;
     cout << "\tlist\t\t\t\tShows a list of the processes and their allocated memory" << endl;
     cout << "\tkill <process>\t\t\tKills the process <process>" << endl;
+    cout << "\texit | EOF\t\t\tExits the program" << endl;
     cout << "\thelp\t\t\t\tDisplays this message" << endl;
     return true;
 }
 
-bool alloc(int master, int rank, int size)
+bool alloc(int master, int rank, int size, string args)
 {
     if (master == rank)
         send_all(master, "alloc", size);
@@ -25,7 +27,7 @@ bool alloc(int master, int rank, int size)
     return true;
 }
 
-bool read(int master, int rank, int size)
+bool read(int master, int rank, int size, string args)
 {
     if (master == rank)
         send_all(master, "read", size);
@@ -49,11 +51,23 @@ bool list(int master, int rank, int size)
     return true;
 }
 
-bool kill(int master, int rank, int size)
+bool kill(int master, int rank, int size, string args)
 {
     if (master == rank)
         send_all(master, "kill", size);
     cout << rank << ": kill" << endl;
+    if (master == rank)
+        receive_all_end(master, size);
+    else
+        MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
+    return true;
+}
+
+bool free_chain(int master, int rank, int size, string args)
+{
+    if (master == rank)
+        send_all(master, "free", size);
+    cout << rank << ": free" << endl;
     if (master == rank)
         receive_all_end(master, size);
     else
