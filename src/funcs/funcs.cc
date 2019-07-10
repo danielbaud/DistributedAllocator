@@ -96,7 +96,7 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
                     if (chunk->get_size() > recv)
                     {
                         send = recv;
-                        chunk->split(send+1, ALLOCATED, FREE);
+                        chunk->split(send, ALLOCATED, FREE);
                     }
                     else
                         send = chunk->get_size();

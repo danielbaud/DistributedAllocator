@@ -13,10 +13,12 @@ int main(int argc, char **argv)
     bool tty = isatty(STDOUT_FILENO) != 0;
     // Master (election?)
     int master = 0;
+
     if (rank == master)
     {
         string command;
         string temp;
+        vector<Chain*> chains = vector<Chain*>();
         do
         {
             if (tty)
@@ -40,7 +42,7 @@ int main(int argc, char **argv)
             else if (command == "help")
                 help();
             else if (command == "alloc")
-                alloc(master, rank, size, args, nullptr);
+                chains.push_back(alloc(master, rank, size, args, nullptr));
             else if (command == "read")
                 read(master, rank, size, args);
             else if (command == "list")
@@ -60,8 +62,9 @@ int main(int argc, char **argv)
     }
     else
     {
-        void *mem = mmap(NULL, MAX_SIZE, PROT_READ | PROT_WRITE,
-                        MAP_SHARED, -1, 0);
+        //void *mem = mmap(NULL, MAX_SIZE, PROT_READ | PROT_WRITE,
+        //                MAP_SHARED, -1, 0);
+        void *mem = malloc(MAX_SIZE);
         Chunk *chunk = new Chunk(MAX_SIZE, mem, FREE);
         char buffer[6];
         do
