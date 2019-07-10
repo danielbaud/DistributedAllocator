@@ -15,16 +15,103 @@ bool help()
     return true;
 }
 
-bool alloc(int master, int rank, int size, string args)
+Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
 {
+    Chain *chain = new Chain(-1, -1, FREE);
+    Chain *par = chain;
     if (master == rank)
+    {
+        int length = args.length();
+        string sentence = args;
+        if (args.length() == 0)
+        {
+            cerr << "alloc: argument needed" << endl;
+            return nullptr;
+        }
+        if (args.length() > 3 && args[0] == '-' && args[1] == 'f' && args[2] == ' ')
+        {
+            args = args.substr(3);
+            int fd = open(args.c_str(), O_RDONLY);
+            if (fd == -1)
+            {
+                cerr << args << ": No such file" << endl;
+                return nullptr;
+            }
+            struct stat buf;
+            fstat(fd, &buf);
+            length = buf.st_size;
+            close(fd);
+            ifstream in(args);
+            sentence = "";
+            while (in.good())
+            {
+                char c = in.get();
+                sentence += c;
+            }
+        }
         send_all(master, "alloc", size);
-    cout << rank << ": alloc" << endl;
+        int slave = 0;
+        int recv = 0;
+        int sent = 0;
+        while (sent < length)
+        {
+            if (slave != master)
+            {
+                MPI_Send(&length, 1, MPI_INT, slave, 0, MPI_COMM_WORLD);
+                MPI_Recv(&recv, 1, MPI_INT, slave, 0, MPI_COMM_WORLD, NULL);
+                if (recv > 0)
+                {
+                    MPI_Send(sentence.substr(sent, recv).c_str(), recv, MPI_CHAR, slave, 0, MPI_COMM_WORLD);
+                    int s = recv;
+                    sent += recv;
+                    MPI_Recv(&recv, 1, MPI_INT, slave, 0, MPI_COMM_WORLD, NULL);
+                    par->next = new Chain(slave, recv, s);
+                    par = par->next;
+                }
+            }
+            slave += 1;
+        }
+        int st = -1;
+        for (unsigned i = 0; i < size; ++i)
+            if (i != master)
+                MPI_Send(&st, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+    }
+    else
+    {
+        int recv = 0;
+        while (recv != -1)
+        {
+            MPI_Recv(&recv, 1, MPI_INT, master, 0, MPI_COMM_WORLD, NULL);
+            if (recv > 0)
+            {
+                int where = 0;
+                while (chunk && chunk->get_state() == ALLOCATED)
+                {
+                    where += chunk->get_size();
+                    chunk = chunk->get_next();
+                }
+                if (chunk)
+                {
+                    int send;
+                    if (chunk->get_size() > recv)
+                    {
+                        send = recv;
+                        chunk->split(send+1, ALLOCATED, FREE);
+                    }
+                    else
+                        send = chunk->get_size();
+                    MPI_Send(&send, 1, MPI_INT, master, 0, MPI_COMM_WORLD);
+                    MPI_Recv(chunk->start, send, MPI_CHAR, master, 0, MPI_COMM_WORLD, NULL);
+                    MPI_Send(&where, 1, MPI_INT, master, 0, MPI_COMM_WORLD);
+                }
+            }
+        }
+    }
     if (master == rank)
         receive_all_end(master, size);
     else
         MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
-    return true;
+    return chain;
 }
 
 bool read(int master, int rank, int size, string args)

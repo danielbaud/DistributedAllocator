@@ -1,5 +1,6 @@
 #define PS1 "> "
 #include "funcs/funcs.hh"
+#include "chunk/chunk.hh"
 
 using namespace std;
 
@@ -25,6 +26,8 @@ int main(int argc, char **argv)
 
             string args;
             getline(cin, args);
+            if (args.length() > 1)
+                args = args.substr(1);
 
             if (cin.eof() || command == "exit")
             {
@@ -37,7 +40,7 @@ int main(int argc, char **argv)
             else if (command == "help")
                 help();
             else if (command == "alloc")
-                alloc(master, rank, size, args);
+                alloc(master, rank, size, args, nullptr);
             else if (command == "read")
                 read(master, rank, size, args);
             else if (command == "list")
@@ -57,6 +60,9 @@ int main(int argc, char **argv)
     }
     else
     {
+        void *mem = mmap(NULL, MAX_SIZE, PROT_READ | PROT_WRITE,
+                        MAP_SHARED, -1, 0);
+        Chunk *chunk = new Chunk(MAX_SIZE, mem, FREE);
         char buffer[6];
         do
         {
@@ -67,7 +73,7 @@ int main(int argc, char **argv)
                 return 0;
             }
             else if (!strcmp(buffer, "alloc"))
-                alloc(master, rank, size, "");
+                alloc(master, rank, size, "", chunk);
             else if (!strcmp(buffer, "read"))
                 read(master, rank, size, "");
             else if (!strcmp(buffer, "kill"))

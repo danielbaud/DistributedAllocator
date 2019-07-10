@@ -9,11 +9,16 @@
 #include <cstring>
 #include <vector>
 #include <mpi.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <fstream>
+#include <sys/stat.h>
+#include "../chunk/chunk.hh"
 
 using namespace std;
 
 bool help();
-bool alloc(int master, int rank, int size, string args);
+Chain *alloc(int master, int rank, int size, string args, Chunk *chunk);
 bool free_chain(int master, int rank, int size, string args);
 bool read(int master, int rank, int size, string args);
 bool list(int master, int rank, int size);
