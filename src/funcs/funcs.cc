@@ -149,7 +149,11 @@ string read(int master, int rank, int size, string args, Chunk *chunk, vector<Ch
                 Chunk *ch = chunk;
                 int where = 0;
                 while (where < recv)
+                {
+                    where += ch->get_size();
                     ch = ch->get_next();
+                }
+
                 MPI_Send(ch->start, ch->get_size(), MPI_CHAR, master, 0, MPI_COMM_WORLD);
             }
         }
