@@ -42,9 +42,12 @@ int main(int argc, char **argv)
             else if (command == "help")
                 help();
             else if (command == "alloc")
+            {
                 chains.push_back(alloc(master, rank, size, args, nullptr));
+                cout << "Allocated in memory slot " << chains.size() - 1 << endl;
+            }
             else if (command == "read")
-                read(master, rank, size, args);
+                cout << read(master, rank, size, args, nullptr, &chains) << endl;
             else if (command == "list")
                 list(master, rank, size);
             else if (command == "kill")
@@ -62,8 +65,6 @@ int main(int argc, char **argv)
     }
     else
     {
-        //void *mem = mmap(NULL, MAX_SIZE, PROT_READ | PROT_WRITE,
-        //                MAP_SHARED, -1, 0);
         void *mem = malloc(MAX_SIZE);
         Chunk *chunk = new Chunk(MAX_SIZE, mem, FREE);
         char buffer[6];
@@ -78,7 +79,7 @@ int main(int argc, char **argv)
             else if (!strcmp(buffer, "alloc"))
                 alloc(master, rank, size, "", chunk);
             else if (!strcmp(buffer, "read"))
-                read(master, rank, size, "");
+                read(master, rank, size, "", chunk, nullptr);
             else if (!strcmp(buffer, "kill"))
                 kill(master, rank, size, "");
             else if (!strcmp(buffer, "list"))
