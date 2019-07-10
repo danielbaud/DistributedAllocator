@@ -179,6 +179,8 @@ bool list(vector<Chain*> chains)
     }
     for (unsigned i = 0; i < chains.size(); ++i)
     {
+        if (!chains[i])
+            continue;
         cout << "Slot " << i << endl;
         Chain *c = chains[i];
         c = c->next;
@@ -195,16 +197,9 @@ bool list(vector<Chain*> chains)
     return true;
 }
 
-bool kill(int master, int rank, int size, string args)
+void kill(int master, int rank, int size, string args)
 {
-    if (master == rank)
-        send_all(master, "kill", size);
-    cout << rank << ": kill" << endl;
-    if (master == rank)
-        receive_all_end(master, size);
-    else
-        MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
-    return true;
+    MPI_Send("kill", 5, MPI_CHAR, stoi(args), 0, MPI_COMM_WORLD);
 }
 
 string free_chain(int master, int rank, int size, string args, Chunk *chunk, vector<Chain*> *chains)

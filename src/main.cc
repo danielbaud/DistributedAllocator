@@ -98,7 +98,10 @@ int main(int argc, char **argv)
             else if (!strcmp(buffer, "read"))
                 read(master, rank, size, "", chunk, nullptr);
             else if (!strcmp(buffer, "kill"))
-                kill(master, rank, size, "");
+            {
+                MPI_Finalize();
+                return 0;
+            }
             else if (!strcmp(buffer, "free"))
                 free_chain(master, rank, size, "", chunk, nullptr);
             else
