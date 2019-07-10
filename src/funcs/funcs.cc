@@ -114,16 +114,51 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
     return chain;
 }
 
-bool read(int master, int rank, int size, string args)
+string read(int master, int rank, int size, string args, Chunk *chunk, vector<Chain*> *chains)
 {
+    string result = "";
     if (master == rank)
+    {
         send_all(master, "read", size);
-    cout << rank << ": read" << endl;
+        int slot = stoi(args);
+        vector<Chain*> npchains = *chains;
+        Chain *read = npchains[slot];
+        read = read->next;
+        while (read)
+        {
+            char buffer[read->size];
+            MPI_Send(&(read->where), 1, MPI_INT, read->process, 0, MPI_COMM_WORLD);
+            MPI_Recv(buffer, read->size, MPI_CHAR, read->process, 0, MPI_COMM_WORLD, NULL);
+            for (unsigned i = 0; i < read->size; ++i)
+                result += buffer[i];
+            read = read->next;
+        }
+        int st = -1;
+        for (unsigned i = 0; i < size; ++i)
+            if (i != master)
+                MPI_Send(&st, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+    }
+    else
+    {
+        int recv = 0;
+        while (recv != -1)
+        {
+            MPI_Recv(&recv, 1, MPI_INT, master, 0, MPI_COMM_WORLD, NULL);
+            if (recv >= 0)
+            {
+                Chunk *ch = chunk;
+                int where = 0;
+                while (where < recv)
+                    ch = ch->get_next();
+                MPI_Send(ch->start, ch->get_size(), MPI_CHAR, master, 0, MPI_COMM_WORLD);
+            }
+        }
+    }
     if (master == rank)
         receive_all_end(master, size);
     else
         MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
-    return true;
+    return result;
 }
 
 bool list(int master, int rank, int size)
