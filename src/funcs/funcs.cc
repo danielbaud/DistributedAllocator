@@ -121,7 +121,7 @@ string read(int master, int rank, int size, string args, Chunk *chunk, vector<Ch
     {
         int slot = stoi(args);
         vector<Chain*> npchains = *chains;
-        if (slot > npchains.size())
+        if (slot >= npchains.size())
             return "Slot " + args + " is not allocated";
         Chain *read = npchains[slot];
         read = read->next;
