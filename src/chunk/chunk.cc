@@ -49,3 +49,9 @@ Chain::Chain(int process, int where, int size)
 , size(size)
 , next(nullptr)
 {}
+
+Chain::~Chain()
+{
+    if (next)
+        delete next;
+}

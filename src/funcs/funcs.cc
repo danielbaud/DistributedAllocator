@@ -8,7 +8,7 @@ bool help()
     cout << "\talloc -f <file> | <string>\tAllocate either a file in memory or the string <string>" << endl;
     cout << "\tfree <chain>\t\t\tFrees the chain <chain>" << endl;
     cout << "\tread <chain>\t\t\tReads the chain <chain>" << endl;
-    cout << "\tlist\t\t\t\tShows a list of the processes and their allocated memory" << endl;
+    cout << "\tlist\t\t\t\tShows a list of the slots used and their allocated memory" << endl;
     cout << "\tkill <process>\t\t\tKills the process <process>" << endl;
     cout << "\texit | EOF\t\t\tExits the program" << endl;
     cout << "\thelp\t\t\t\tDisplays this message" << endl;
@@ -31,20 +31,12 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
         if (args.length() > 3 && args[0] == '-' && args[1] == 'f' && args[2] == ' ')
         {
             args = args.substr(3);
-            int fd = open(args.c_str(), O_RDONLY);
-            if (fd == -1)
-            {
-                cerr << args << ": No such file" << endl;
-                return nullptr;
-            }
-            struct stat buf;
-            fstat(fd, &buf);
-            length = buf.st_size;
-            close(fd);
+            length = 0;
             ifstream in(args);
             sentence = "";
-            while (in.good())
+            while (!in.eof())
             {
+                length++;
                 char c = in.get();
                 sentence += c;
             }
@@ -53,11 +45,12 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
         int slave = 0;
         int recv = 0;
         int sent = 0;
-        while (sent < length)
+        while (sent < length && slave < size)
         {
             if (slave != master)
             {
-                MPI_Send(&length, 1, MPI_INT, slave, 0, MPI_COMM_WORLD);
+                int ss = length - sent;
+                MPI_Send(&ss, 1, MPI_INT, slave, 0, MPI_COMM_WORLD);
                 MPI_Recv(&recv, 1, MPI_INT, slave, 0, MPI_COMM_WORLD, NULL);
                 if (recv > 0)
                 {
@@ -71,6 +64,8 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
             }
             slave += 1;
         }
+        if (slave == size)
+            cerr << "Warning: reached max size capacity" << endl;
         int st = -1;
         for (unsigned i = 0; i < size; ++i)
             if (i != master)
@@ -99,10 +94,18 @@ Chain *alloc(int master, int rank, int size, string args, Chunk *chunk)
                         chunk->split(send, ALLOCATED, FREE);
                     }
                     else
+                    {
                         send = chunk->get_size();
+                        chunk->set_state(ALLOCATED);
+                    }
                     MPI_Send(&send, 1, MPI_INT, master, 0, MPI_COMM_WORLD);
                     MPI_Recv(chunk->start, send, MPI_CHAR, master, 0, MPI_COMM_WORLD, NULL);
                     MPI_Send(&where, 1, MPI_INT, master, 0, MPI_COMM_WORLD);
+                }
+                else
+                {
+                    int send = 0;
+                    MPI_Send(&send, 1, MPI_INT, master, 0, MPI_COMM_WORLD);
                 }
             }
         }
@@ -121,7 +124,7 @@ string read(int master, int rank, int size, string args, Chunk *chunk, vector<Ch
     {
         int slot = stoi(args);
         vector<Chain*> npchains = *chains;
-        if (slot >= npchains.size())
+        if (slot >= npchains.size() || npchains[slot] == nullptr)
             return "Slot " + args + " is not allocated";
         Chain *read = npchains[slot];
         read = read->next;
@@ -167,15 +170,28 @@ string read(int master, int rank, int size, string args, Chunk *chunk, vector<Ch
     return result;
 }
 
-bool list(int master, int rank, int size)
+bool list(vector<Chain*> chains)
 {
-    if (master == rank)
-        send_all(master, "list", size);
-    cout << "Process " << rank << " active" << endl;
-    if (master == rank)
-        receive_all_end(master, size);
-    else
-        MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
+    if (chains.size() == 0)
+    {
+        cout << "No Slot allocated" << endl;
+        return true;
+    }
+    for (unsigned i = 0; i < chains.size(); ++i)
+    {
+        cout << "Slot " << i << endl;
+        Chain *c = chains[i];
+        c = c->next;
+        int size = 0;
+        while (c)
+        {
+            cout << "\tprocess " << c->process << " | offset " << c->where <<
+            " | size = " << c->size << endl;
+            size += c->size;
+            c = c->next;
+        }
+        cout << "Total size: " << size << endl << "-----" << endl;
+    }
     return true;
 }
 
@@ -191,16 +207,56 @@ bool kill(int master, int rank, int size, string args)
     return true;
 }
 
-bool free_chain(int master, int rank, int size, string args)
+string free_chain(int master, int rank, int size, string args, Chunk *chunk, vector<Chain*> *chains)
 {
     if (master == rank)
+    {
+        if (args.length() == 0)
+            return "free: argument needed";
+        int slot = stoi(args);
+        vector<Chain*> npchains = *chains;
+        if (slot >= npchains.size() || npchains[slot] == nullptr)
+        {
+            return "Slot " + args + " is not allocated";
+        }
+        Chain *read = npchains[slot];
+        read = read->next;
         send_all(master, "free", size);
-    cout << rank << ": free" << endl;
+        while (read)
+        {
+            MPI_Send(&(read->where), 1, MPI_INT, read->process, 0, MPI_COMM_WORLD);
+            read = read->next;
+        }
+        delete npchains[slot];
+        int st = -1;
+        for (unsigned i = 0; i < size; ++i)
+            if (i != master)
+                MPI_Send(&st, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+    }
+    else
+    {
+        int recv = 0;
+        while (recv != -1)
+        {
+            MPI_Recv(&recv, 1, MPI_INT, master, 0, MPI_COMM_WORLD, NULL);
+            if (recv >= 0)
+            {
+                Chunk *ch = chunk;
+                int where = 0;
+                while (where < recv)
+                {
+                    where += ch->get_size();
+                    ch = ch->get_next();
+                }
+                ch->set_state(FREE);
+            }
+        }
+    }
     if (master == rank)
         receive_all_end(master, size);
     else
         MPI_Send("end", 4, MPI_CHAR, master, 0, MPI_COMM_WORLD);
-    return true;
+    return "Slot " + args + " is not longer allocated";
 }
 
 void send_all(int master, const char *message, int size)

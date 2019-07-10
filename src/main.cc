@@ -22,7 +22,7 @@ int main(int argc, char **argv)
         do
         {
             if (tty)
-                cout << PS1;
+                cout << endl << PS1;
 
             cin >> command;
 
@@ -43,17 +43,34 @@ int main(int argc, char **argv)
                 help();
             else if (command == "alloc")
             {
-                chains.push_back(alloc(master, rank, size, args, nullptr));
-                cout << "Allocated in memory slot " << chains.size() - 1 << endl;
+                Chain *c = alloc(master, rank, size, args, nullptr);
+                if (c)
+                {
+                    unsigned i = 0;
+                    for (; i < chains.size(); ++i)
+                    {
+                        if (!chains[i])
+                        {
+                            chains[i] = c;
+                            break;
+                        }
+                    }
+                    if (i == chains.size())
+                        chains.push_back(c);
+                    cout << "Allocated in memory slot " << i << endl;
+                }
             }
             else if (command == "read")
                 cout << read(master, rank, size, args, nullptr, &chains) << endl;
             else if (command == "list")
-                list(master, rank, size);
+                list(chains);
             else if (command == "kill")
                 kill(master, rank, size, args);
             else if (command == "free")
-                free_chain(master, rank, size, args);
+            {
+                cout << free_chain(master, rank, size, args, nullptr, &chains) << endl;
+                chains[stoi(args)] = nullptr;
+            }
             else
                 cout << command << ": command not found" << endl;
         }
@@ -82,10 +99,8 @@ int main(int argc, char **argv)
                 read(master, rank, size, "", chunk, nullptr);
             else if (!strcmp(buffer, "kill"))
                 kill(master, rank, size, "");
-            else if (!strcmp(buffer, "list"))
-                list(master, rank, size);
             else if (!strcmp(buffer, "free"))
-                free_chain(master, rank, size, "");
+                free_chain(master, rank, size, "", chunk, nullptr);
             else
                 cout << buffer << ": unknown MPI message" << endl;
         }

@@ -31,6 +31,7 @@ class Chain
 {
 public:
     Chain(int process, int where, int size);
+    ~Chain();
     int process;
     int where;
     int size;
